@@ -4,8 +4,8 @@ import {BoxGeometry, Mesh, MeshBasicMaterial} from "./ThreeRes/three.module.js";
 
 // ======= Setup =======
 const scene = new THREE.Scene();
-scene.background = new THREE.Color( 0x454545 );
-const camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 15);
+scene.background = new THREE.Color(0x121212);
+const camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 25);
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
@@ -48,10 +48,12 @@ function buildFloor() {
 
 // Roof Gen
 const roofY = 4
+const roofGeo = new THREE.BoxGeometry(1, 1, 1);
+const roofMat = new THREE.MeshBasicMaterial({color: 0x878787});
 function buildRoof() {
     for (let x = 0; x < floorLength; x++) {
         for (let z = 0; z < floorWidth; z++) {
-            let roofPiece = new THREE.Mesh(floorGeo, floorMat2);
+            let roofPiece = new THREE.Mesh(roofGeo, roofMat);
             roofPiece.position.set(x, roofY, z)
             scene.add(roofPiece);
         }
@@ -76,7 +78,6 @@ function buildBorders() {
     by2.position.set(floorLength, floorY, floorWidth / 2)
     scene.add(by2)
 }
-
 
 // Grid for wall markers and pathfinding; x=len,z=wid
 const grid = []  // grid[width][length] = {isWall: bool, connectsTo:[[x, z],...]
@@ -255,26 +256,26 @@ function handleKeyState() {
 // =======
 
 // ======= OoHoos =======
-const ooHooGeo = new BoxGeometry(1.2, 1.2, 0.01)
+const OooHooGeo = new BoxGeometry(1.2, 1.2, 0.01)
 const textureLoader = new THREE.TextureLoader()
-const textures = [
-    'oohoo1_cat',
-    'oohoo2_christian',
-    'oohoo3_eleanor',
-    'oohoo4_will',
-    'oohoo5_willi',
+const texture_message = [
+    ['oohoo1_cat',       'You were eaten by a cat.'],
+    ['oohoo2_christian', 'You were consumed by a carnivore.'],
+    ['oohoo3_eleanor',   'You were bullied by a girl.'],
+    ['oohoo4_will',      'You were caught by a little kid.'],
+    ['oohoo5_willi',     'You were overcome by William.']
 ]
 const OoHoos_TargetSquare_Path = [
 ]  // {OoHoo: mesh, TargetSquare: [x,z], Path: [[x, z],...]}
-for (let i = 0; i < textures.length; i++) {
-    let texture = textureLoader.load('./OoHoos/' + textures[i] + '.png')
-    let ooHooMat = new MeshBasicMaterial({map: texture})
-    let ooHoo = new Mesh(ooHooGeo, ooHooMat)
-    OoHoos_TargetSquare_Path.push({OoHoo: ooHoo, TargetSquare: [null, null], Path: []})
-    scene.add(ooHoo)
-    ooHoo.position.set(1, 1.5, 0)
+for (let i = 0; i < texture_message.length; i++) {
+    let texture = textureLoader.load('./OoHoos/' + texture_message[i][0] + '.png')
+    let OoHooMat = new MeshBasicMaterial({map: texture})
+    let OoHoo = new Mesh(OooHooGeo, OoHooMat)
+    OoHoos_TargetSquare_Path.push({OoHoo: OoHoo, TargetSquare: [null, null], Path: []})
+    scene.add(OoHoo)
+    OoHoo.position.set(1, 1.5, 0)
+    OoHoo.ooHooMessage = texture_message[i][1]
 }
-
 function setTargetSquare(i) {
     const OoHoo = OoHoos_TargetSquare_Path[i].OoHoo
     const TargetSquare = OoHoos_TargetSquare_Path[i].TargetSquare
@@ -364,7 +365,7 @@ function stepOoHoo(i) {
     OoHoo.lookAt(camera.position)
     if (Path.length > 0) {
         let next = Path[0]
-        let speedFactor = 110  // Greater = slower
+        let speedFactor = 95  // Greater = slower
         let sx = (next[0] - OoHoo.position.x) / speedFactor
         let sz = (next[1] - OoHoo.position.z) / speedFactor
         for (let j = 0; j < 10; j++) {
@@ -375,25 +376,51 @@ function stepOoHoo(i) {
             Path.shift()
         }
     }
-    if (OoHoo.position.distanceTo(camera.position) < 1.3) {
-        gameOver = true
-        controls.unlock()
-        controls.disconnect()
-        camera.lookAt(OoHoo.position)
-        OoHoo.lookAt(camera.position)
-        const OoHooXYZ = [OoHoo.position.x, OoHoo.position.y, OoHoo.position.z]
-        OoHoo.translateZ(0.7)
-        setInterval(() => {
-            OoHoo.position.y = OoHooXYZ[1] + Math.random() * (Math.random() > 0.5 ? -0.1 : 0.1)
-        }, 50)
-        // Todo: Death message
+    if (OoHoo.position.distanceTo(camera.position) < 1.5) {
+        endGame(OoHoo)
     }
+}
+function endGame(OoHoo) {
+    gameOver = true
+    controls.unlock()
+    controls.disconnect()
+    OoHoo.lookAt(camera.position)
+    OoHoo.translateZ(0.7)
+    const OoHooOrigY = OoHoo.position.y
+    setInterval(() => {OoHoo.position.y = OoHooOrigY + Math.random() * (Math.random() > 0.5 ? -0.1 : 0.1)}, 50)
+    document.getElementById('deathMessage').textContent = OoHoo.ooHooMessage
+
+    const nofIterations = 20
+    const origRot = camera.rotation.clone()
+    camera.lookAt(OoHoo.position)
+    const newRot = camera.rotation.clone()
+    camera.rotation.copy(origRot)
+    let diffX = newRot.x - origRot.x
+    let diffY = newRot.y - origRot.y
+    let diffZ = newRot.z - origRot.z
+    let i = 0
+    let interval = setInterval(() => {
+        camera.rotation.x += diffX /nofIterations
+        camera.rotation.y += diffY/nofIterations
+        camera.rotation.z += diffZ/nofIterations
+        renderer.render(scene, camera)
+        i += 1
+        if (i === nofIterations) {
+            clearInterval(interval)
+            camera.rotation.copy(newRot)
+            for (let i = 0; i < 500; i++) {
+                setTimeout(() => {
+                    document.getElementById('gameOverScreen').style.opacity = (i / 500).toString()
+                }, i * 10)
+            }
+        }
+    }, 7)
 }
 async function tickOoHoos() {
     if (!gameOver) {
         for (let i = 0; i < OoHoos_TargetSquare_Path.length; i++) {
             stepOoHoo(i)
-            if (tick % 250 === 0) {
+            if (tick % 200 === 0) {
                 if (setTargetSquare(i)) {  // If new path needs generating
                     findPath(i)
                 }
@@ -403,7 +430,6 @@ async function tickOoHoos() {
 }
 // =======
 
-// Todo: Wall textures, ground textures
 // Todo-maybe: sounds
 // Todo-maybe: escape objective (instead of boring "just survive")
 // Todo-maybe: multiplayer???
@@ -414,12 +440,11 @@ const animate = () => {
     requestAnimationFrame(animate);
     handleKeyState()
     tickOoHoos()
-    renderer.render(scene, camera)
     updateTimer()
+    renderer.render(scene, camera)
     tick += 1
 //    document.getElementById('hud').textContent = `X:${Math.round(camera.position.x)} Z:${Math.round(camera.position.z)} |Sprint:${sprint}| NofWalls:${nofWalls}; Dist:${OoHoos_TargetSquare_Path[0].OoHoo.position.distanceTo(camera.position)}`
 };
-
 let startTime;
 let timerInterval;
 function startTimer() {
@@ -435,7 +460,7 @@ async function updateTimer() {
         const seconds = Math.floor((elapsedTime % 60000) / 1000);
         const formattedMinutes = String(minutes).padStart(2, '0');
         const formattedSeconds = String(seconds).padStart(2, '0');
-        document.getElementById('timer').textContent = `${formattedMinutes}:${formattedSeconds}`;
+        document.getElementById('timer').textContent = `Survived: ${formattedMinutes}:${formattedSeconds}`;
     }
 }
 let started = false
