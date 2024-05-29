@@ -4,7 +4,8 @@ import {BoxGeometry, Mesh, MeshBasicMaterial} from "./ThreeRes/three.module.js";
 
 // ======= Setup =======
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 20);
+scene.background = new THREE.Color( 0x454545 );
+const camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 15);
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
@@ -29,7 +30,7 @@ const floorWidth = 100
 const floorY = 0
 const floorGeo = new THREE.BoxGeometry(1, 1, 1);
 const floorMat1 = new THREE.MeshBasicMaterial({color: 0x989898});
-const floorMat2 = new THREE.MeshBasicMaterial({color: 0x989870});
+const floorMat2 = new THREE.MeshBasicMaterial({color: 0x878787});
 function buildFloor() {
     for (let x = 0; x < floorLength; x++) {
         for (let z = 0; z < floorWidth; z++) {
@@ -50,7 +51,7 @@ const roofY = 4
 function buildRoof() {
     for (let x = 0; x < floorLength; x++) {
         for (let z = 0; z < floorWidth; z++) {
-            let roofPiece = new THREE.Mesh(floorGeo, floorMat1);
+            let roofPiece = new THREE.Mesh(floorGeo, floorMat2);
             roofPiece.position.set(x, roofY, z)
             scene.add(roofPiece);
         }
@@ -96,7 +97,7 @@ const nofWalls = Math.round(minNofWalls + Math.random() * (maxNofWalls - minNofW
 const wallGeo = new THREE.BoxGeometry(1, 10, 1);
 const c1Geo = new THREE.BoxGeometry(0.5, 10, 1);
 const c2Geo = new THREE.BoxGeometry(1, 10, 0.5);
-const wallMat = new THREE.MeshBasicMaterial({color: 0x343434, wireframe: false});
+const wallMat = new THREE.MeshBasicMaterial({color: 0x565656, wireframe: false});
 function makeWallBlock(x, z) {
     const wall = new THREE.Mesh(wallGeo, wallMat);
     const c1 = new THREE.Mesh(c1Geo, wallMat);
@@ -192,11 +193,6 @@ genPathfindingGrid()
 // ======= Player Variables =======
 let playerSpeed = 0.05
 let sprint = 100
-setInterval(() => {
-    if (sprint < 100) {
-        sprint += 1
-    }
-}, 1000)
 // =======
 
 // ======= Safety Movement =======
@@ -245,13 +241,15 @@ function handleKeyState() {
         if (keyState['KeyS']) safeMoveForward(-playerSpeed);
         if (keyState['KeyA']) safeMoveRight(-playerSpeed);
         if (keyState['KeyD']) safeMoveRight(playerSpeed);
-        if (keyState['ShiftLeft'] && sprint > 0) {
+        if (keyState['ShiftLeft'] && sprint > 1) {
             playerSpeed = 0.15
             sprint -= 1
         } else {
             playerSpeed = 0.05
+            if (sprint < 100) {
+                sprint += 0.25
+            }
         }
-        updateTimer()
     }
 }
 // =======
@@ -284,6 +282,7 @@ function setTargetSquare(i) {
     if (OoHoo.position.distanceTo(camera.position) < 30) {
         TargetSquare[0] = Math.abs(Math.round(camera.position.x))
         TargetSquare[1] = Math.abs(Math.round(camera.position.z))
+        return true
 //        console.log('Player target...')
     } else {
         // Don't create new random target square if prev target is not reached
@@ -296,8 +295,10 @@ function setTargetSquare(i) {
             }
             TargetSquare[0] = x
             TargetSquare[1] = z
+            return true
 //            console.log('Random target...')
         }
+        return false
     }
     // console.log('Target Selected:', TargetSquare)
 }
@@ -363,7 +364,7 @@ function stepOoHoo(i) {
     OoHoo.lookAt(camera.position)
     if (Path.length > 0) {
         let next = Path[0]
-        let speedFactor = 120
+        let speedFactor = 110  // Greater = slower
         let sx = (next[0] - OoHoo.position.x) / speedFactor
         let sz = (next[1] - OoHoo.position.z) / speedFactor
         for (let j = 0; j < 10; j++) {
@@ -392,9 +393,10 @@ async function tickOoHoos() {
     if (!gameOver) {
         for (let i = 0; i < OoHoos_TargetSquare_Path.length; i++) {
             stepOoHoo(i)
-            if (tick % 10 === 0) {
-                setTargetSquare(i)
-                findPath(i)
+            if (tick % 250 === 0) {
+                if (setTargetSquare(i)) {  // If new path needs generating
+                    findPath(i)
+                }
             }
         }
     }
@@ -402,8 +404,9 @@ async function tickOoHoos() {
 // =======
 
 // Todo: Wall textures, ground textures
-// Todo: scary effects (limit pov, throbbing vision, fog, blinking?, sounds?)
-// Todo: escape objective (instead of boring "just survive")
+// Todo-maybe: sounds
+// Todo-maybe: escape objective (instead of boring "just survive")
+// Todo-maybe: multiplayer???
 
 let tick = 0
 let gameOver = false
@@ -412,6 +415,7 @@ const animate = () => {
     handleKeyState()
     tickOoHoos()
     renderer.render(scene, camera)
+    updateTimer()
     tick += 1
 //    document.getElementById('hud').textContent = `X:${Math.round(camera.position.x)} Z:${Math.round(camera.position.z)} |Sprint:${sprint}| NofWalls:${nofWalls}; Dist:${OoHoos_TargetSquare_Path[0].OoHoo.position.distanceTo(camera.position)}`
 };
