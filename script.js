@@ -267,15 +267,17 @@ const texture_message = [
 ]
 const OoHoos_TargetSquare_Path = [
 ]  // {OoHoo: mesh, TargetSquare: [x,z], Path: [[x, z],...]}
-for (let i = 0; i < texture_message.length; i++) {
-    let texture = textureLoader.load('./OoHoos/' + texture_message[i][0] + '.png')
-    let OoHooMat = new MeshBasicMaterial({map: texture})
-    let OoHoo = new Mesh(OooHooGeo, OoHooMat)
-    OoHoos_TargetSquare_Path.push({OoHoo: OoHoo, TargetSquare: [null, null], Path: []})
-    scene.add(OoHoo)
-    OoHoo.position.set(1, 1.5, 0)
-    OoHoo.ooHooMessage = texture_message[i][1]
-}
+function generateOoHoos() {
+    for (let i = 0; i < texture_message.length; i++) {
+        let texture = textureLoader.load('./OoHoos/' + texture_message[i][0] + '.png')
+        let OoHooMat = new MeshBasicMaterial({map: texture})
+        let OoHoo = new Mesh(OooHooGeo, OoHooMat)
+        OoHoos_TargetSquare_Path.push({OoHoo: OoHoo, TargetSquare: [null, null], Path: []})
+        scene.add(OoHoo)
+        OoHoo.position.set(1, 1.5, 0)
+        OoHoo.ooHooMessage = texture_message[i][1]
+    }
+} generateOoHoos()
 function setTargetSquare(i) {
     const OoHoo = OoHoos_TargetSquare_Path[i].OoHoo
     const TargetSquare = OoHoos_TargetSquare_Path[i].TargetSquare
@@ -414,7 +416,7 @@ function endGame(OoHoo) {
                 }, i * 10)
             }
         }
-    }, 7)
+    }, 5)
 }
 async function tickOoHoos() {
     if (!gameOver) {
@@ -430,10 +432,7 @@ async function tickOoHoos() {
 }
 // =======
 
-// Todo-maybe: sounds
-// Todo-maybe: escape objective (instead of boring "just survive")
-// Todo-maybe: multiplayer???
-
+// ======= Runners =======
 let tick = 0
 let gameOver = false
 const animate = () => {
@@ -443,7 +442,6 @@ const animate = () => {
     updateTimer()
     renderer.render(scene, camera)
     tick += 1
-//    document.getElementById('hud').textContent = `X:${Math.round(camera.position.x)} Z:${Math.round(camera.position.z)} |Sprint:${sprint}| NofWalls:${nofWalls}; Dist:${OoHoos_TargetSquare_Path[0].OoHoo.position.distanceTo(camera.position)}`
 };
 let startTime;
 let timerInterval;
@@ -452,33 +450,33 @@ function startTimer() {
     clearInterval(timerInterval); // Clear any existing interval
     timerInterval = setInterval(updateTimer, 1000);
 }
-async function updateTimer() {
+function updateTimer() {
     if (!gameOver) {
-        const currentTime = Date.now();
-        const elapsedTime = currentTime - startTime;
+        const elapsedTime = Date.now() - startTime;
         const minutes = Math.floor(elapsedTime / 60000);
         const seconds = Math.floor((elapsedTime % 60000) / 1000);
-        const formattedMinutes = String(minutes).padStart(2, '0');
-        const formattedSeconds = String(seconds).padStart(2, '0');
-        document.getElementById('timer').textContent = `Survived: ${formattedMinutes}:${formattedSeconds}`;
+        document.getElementById('timer').textContent = `Survived: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
 }
 let started = false
-function start() {
-    document.body.removeChild(document.getElementById('start'))
-    lockControls()
-    document.addEventListener('click', lockControls);
-    startTimer()
-    animate()
-}
 function main() {
     spawn()
     renderer.render(scene, camera)
     document.addEventListener('click', () => {
         if (!started) {
             started = true;
-            start()
+            document.body.removeChild(document.getElementById('start'))
+            lockControls()
+            document.addEventListener('click', lockControls);
+            startTimer()
+            animate()
         }
     });
 }
 main()
+// =======
+
+// Todo-maybe: sounds, more effects (vision, fog, oohoo-sensor?)
+// Todo-maybe: escape objective (instead of boring "just survive")
+// Todo-maybe: multiplayer???
+
