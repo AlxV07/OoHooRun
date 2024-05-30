@@ -1,5 +1,5 @@
-import  * as THREE from './ThreeRes/three.module.js'
-import { PointerLockControls } from './ThreeRes/PointerLockControls.js';
+import * as THREE from './ThreeRes/three.module.js'
+import {PointerLockControls} from './ThreeRes/PointerLockControls.js';
 
 // ======= Setup =======
 let renderer;
@@ -29,6 +29,7 @@ setup()
 // =======
 
 // ======= Effects =======
+// Lights
 const lightThrobQ = []
 function lightThrob(toIntensity) {
     let interval = 150
@@ -55,13 +56,35 @@ function startRandomThrobbing() {
 function updateLight() {
     if (!gameOver) {
         if (lightThrobQ.length > 0) {
-            light.intensity = lightThrobQ.shift()
+            let amt = lightThrobQ.shift()
+            light.intensity = amt
+            ambientSound.setVolume(0.25 + Math.max(0, -amt))
         }
     }
 }
-// Todo-maybe: sounds
-// https://threejs.org/docs/#api/en/audio/PositionalAudio
-// https://threejs.org/docs/index.html#api/en/audio/Audio
+// Sounds
+const listener = new THREE.AudioListener();
+const ambientSound = new THREE.Audio(listener);
+const audioLoader = new THREE.AudioLoader();
+camera.add(listener);
+function loadAndPlayAmbientSound() {
+    audioLoader.load('./sounds/ambient_hum.mp3', function (buffer) {
+        ambientSound.setBuffer(buffer);
+        ambientSound.setLoop(true);
+        ambientSound.setVolume(0.1);
+        ambientSound.play();
+    });
+}
+let footstepSound1 = new THREE.Audio(listener);
+let footstepSound2 = new THREE.Audio(listener);
+function loadFootstepSound() {
+    audioLoader.load('./sounds/footstep.mp3', function (buffer) {
+        footstepSound1.setBuffer(buffer);
+        footstepSound1.setVolume(0.7)
+        footstepSound2.setBuffer(buffer);
+        footstepSound2.setVolume(0.5)
+    });
+}
 // =======
 
 // ======= Maze =======
@@ -227,6 +250,7 @@ let sprint = 100
 
 // Movement
 function safeMoveForward(amt) {
+    if (tick % ((playerSpeed===0.15)?15:25) === 0) {if (footstepSound1.isPlaying) {footstepSound2.play();} else {footstepSound1.play();}}
     controls.moveForward(amt)
     let x = Math.round(controls.getObject().position.x)
     let z = Math.round(controls.getObject().position.z)
@@ -235,6 +259,7 @@ function safeMoveForward(amt) {
     }
 }
 function safeMoveRight(amt) {
+    if (tick % ((playerSpeed===0.15)?15:25) === 0) {if (footstepSound1.isPlaying) {footstepSound2.play();} else {footstepSound1.play();}}
     controls.moveRight(amt)
     let x = Math.round(controls.getObject().position.x)
     let z = Math.round(controls.getObject().position.z)
@@ -260,10 +285,6 @@ document.addEventListener('keydown', (event) => {keyState[event.code] = true;});
 document.addEventListener('keyup', (event) => {keyState[event.code] = false;});
 function handleKeyState() {
     if (!gameOver) {
-        if (keyState['KeyW']) safeMoveForward(playerSpeed);
-        if (keyState['KeyS']) safeMoveForward(-playerSpeed);
-        if (keyState['KeyA']) safeMoveRight(-playerSpeed);
-        if (keyState['KeyD']) safeMoveRight(playerSpeed);
         if (keyState['ShiftLeft'] && sprint > 1) {
             playerSpeed = 0.15
             sprint -= 1
@@ -273,13 +294,17 @@ function handleKeyState() {
                 sprint += 0.1
             }
         }
+        if (keyState['KeyW']) safeMoveForward(playerSpeed);
+        if (keyState['KeyS']) safeMoveForward(-playerSpeed);
+        if (keyState['KeyA']) safeMoveRight(-playerSpeed);
+        if (keyState['KeyD']) safeMoveRight(playerSpeed);
     }
 }
 // =======
 
 // ======= OoHoos =======
 const textureLoader = new THREE.TextureLoader()
-const texture_message = [
+const texture_message = [  // Texture, Death Message
     ['oohoo1_cat',       'You were eaten by a cat.'],
     ['oohoo2_christian', 'You were consumed by a carnivore.'],
     ['oohoo3_eleanor',   'You were bullied by a girl.'],
@@ -386,7 +411,7 @@ function endGame(OoHoo) {
     const OoHooOrigY = OoHoo.position.y
     setInterval(() => {OoHoo.position.y = OoHooOrigY + Math.random() * (Math.random() > 0.5 ? -0.1 : 0.1)}, 50)
     document.getElementById('deathMessage').textContent = OoHoo.ooHooMessage
-    const nofIterations = 7
+    const nofIterations = 10
     const origRot = camera.rotation.clone()
     camera.lookAt(OoHoo.position)
     const newRot = camera.rotation.clone()
@@ -395,6 +420,7 @@ function endGame(OoHoo) {
     let diffY = newRot.y - origRot.y
     let diffZ = newRot.z - origRot.z
     let i = 0
+    ambientSound.setVolume(0.8);
     let interval = setInterval(() => {
         camera.rotation.x += diffX /nofIterations
         camera.rotation.y += diffY/nofIterations
@@ -468,6 +494,8 @@ function main() {
             document.addEventListener('click', () => {controls.lock()});
             startTimer()
             startRandomThrobbing()
+            loadAndPlayAmbientSound()
+            loadFootstepSound()
             animate()
         }
     });
@@ -475,6 +503,6 @@ function main() {
 main()
 // =======
 
-// Todo-maybe: escape objective (instead of boring "just survive")
+// Todo-maybe: optional escape objective (instead of boring "just survive") (ideas: find the door + collect keys, cover all ground)
 
 // Todo-maybe: multiplayer???
