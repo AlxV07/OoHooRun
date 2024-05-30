@@ -6,11 +6,15 @@ let renderer;
 let scene;
 let camera;
 let controls;
+let light;
 function setup() {
     renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x121212);
+    scene.background = new THREE.Color(0xffffff);
+    scene.fog = new THREE.FogExp2(0xffffff, 0.05)
+    light = new THREE.AmbientLight(0xffffff, 1);
+    scene.add(light);
     camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 20);
     document.body.appendChild(renderer.domElement);
     controls = new PointerLockControls(camera, document.body);
@@ -24,14 +28,50 @@ function setup() {
 setup()
 // =======
 
+// ======= Effects =======
+const lightThrobQ = []
+function lightThrob(toIntensity) {
+    let interval = 150
+    let step = (toIntensity - light.intensity) / interval
+    let curIntensity = light.intensity
+    for (let i = 0; i < interval; i++) {
+        lightThrobQ.push(curIntensity + step * i)
+    }
+    for (let i = 0; i < interval / 4; i++) {
+        lightThrobQ.push(toIntensity)
+    }
+    for (let i = 0; i < interval; i++) {
+        lightThrobQ.push(toIntensity - step * i)
+    }
+}
+let throbInterval;
+function startRandomThrobbing() {
+    throbInterval = setInterval(() => {
+        if (Math.random() > 0.7) {
+            lightThrob(-1)
+        }
+    }, 7000)
+}
+function updateLight() {
+    if (!gameOver) {
+        if (lightThrobQ.length > 0) {
+            light.intensity = lightThrobQ.shift()
+        }
+    }
+}
+// Todo-maybe: sounds
+// https://threejs.org/docs/#api/en/audio/PositionalAudio
+// https://threejs.org/docs/index.html#api/en/audio/Audio
+// =======
+
 // ======= Maze =======
 // Floor
 const floorY = 0
 const floorLength = 100
 const floorWidth = 100
 const floorGeo = new THREE.BoxGeometry(1, 1, 1);
-const floorMat1 = new THREE.MeshBasicMaterial({color: 0x989898});
-const floorMat2 = new THREE.MeshBasicMaterial({color: 0x878787});
+const floorMat1 = new THREE.MeshPhongMaterial({color: 0x989898});
+const floorMat2 = new THREE.MeshPhongMaterial({color: 0x878787});
 function buildFloor() {
     for (let x = 0; x < floorLength; x++) {
         for (let z = 0; z < floorWidth; z++) {
@@ -45,7 +85,7 @@ function buildFloor() {
 // Roof
 const roofY = 4
 const roofGeo = new THREE.BoxGeometry(1, 1, 1);
-const roofMat = new THREE.MeshBasicMaterial({color: 0x878787});
+const roofMat = new THREE.MeshPhongMaterial({color: 0x878787});
 function buildRoof() {
     for (let x = 0; x < floorLength; x++) {
         for (let z = 0; z < floorWidth; z++) {
@@ -58,7 +98,7 @@ function buildRoof() {
 
 // Border
 function buildBorders() {
-    const bMat = new THREE.MeshBasicMaterial({color: 0x343434, wireframe: false});
+    const bMat = new THREE.MeshPhongMaterial({color: 0x343434, wireframe: false});
     const bxGeo = new THREE.BoxGeometry(floorLength + 1, 10, 1)
     const bx1 = new THREE.Mesh(bxGeo, bMat);
     bx1.position.set(floorLength / 2, floorY, -1)
@@ -94,7 +134,7 @@ const nofWalls = Math.round(minNofWalls + Math.random() * (maxNofWalls - minNofW
 const wallGeo = new THREE.BoxGeometry(1, 10, 1);
 const c1Geo = new THREE.BoxGeometry(0.5, 10, 1);
 const c2Geo = new THREE.BoxGeometry(1, 10, 0.5);
-const wallMat = new THREE.MeshBasicMaterial({color: 0x565656, wireframe: false});
+const wallMat = new THREE.MeshPhongMaterial({color: 0x565656, wireframe: false});
 function makeWallBlock(x, z) {
     const wall = new THREE.Mesh(wallGeo, wallMat);
     const c1 = new THREE.Mesh(c1Geo, wallMat);
@@ -252,7 +292,7 @@ const OooHooGeo = new THREE.BoxGeometry(1.2, 1.2, 0.01)
 function generateOoHoos() {
     for (let i = 0; i < texture_message.length; i++) {
         let texture = textureLoader.load('./OoHoos/' + texture_message[i][0] + '.png')
-        let OoHoo = new THREE.Mesh(OooHooGeo, new THREE.MeshBasicMaterial({map: texture}))
+        let OoHoo = new THREE.Mesh(OooHooGeo, new THREE.MeshPhongMaterial({map: texture}))
         OoHoos_TargetSquare_Path.push({OoHoo: OoHoo, TargetSquare: [null, null], Path: []})
         OoHoo.ooHooMessage = texture_message[i][1]
         OoHoo.position.set(1, 1.5, 0)
@@ -346,7 +386,7 @@ function endGame(OoHoo) {
     const OoHooOrigY = OoHoo.position.y
     setInterval(() => {OoHoo.position.y = OoHooOrigY + Math.random() * (Math.random() > 0.5 ? -0.1 : 0.1)}, 50)
     document.getElementById('deathMessage').textContent = OoHoo.ooHooMessage
-    const nofIterations = 20
+    const nofIterations = 7
     const origRot = camera.rotation.clone()
     camera.lookAt(OoHoo.position)
     const newRot = camera.rotation.clone()
@@ -364,6 +404,8 @@ function endGame(OoHoo) {
         if (i === nofIterations) {
             clearInterval(interval)
             camera.rotation.copy(newRot)
+            clearInterval(throbInterval)
+            light.intensity = 1
             for (let i = 0; i < 500; i++) {
                 setTimeout(() => {
                     document.getElementById('gameOverScreen').style.opacity = (i / 500).toString()
@@ -394,6 +436,7 @@ const animate = () => {
     requestAnimationFrame(animate);
     handleKeyState()
     tickOoHoos()
+    updateLight()
     updateTimer()
     renderer.render(scene, camera)
     tick += 1
@@ -424,6 +467,7 @@ function main() {
             controls.lock()
             document.addEventListener('click', () => {controls.lock()});
             startTimer()
+            startRandomThrobbing()
             animate()
         }
     });
@@ -431,6 +475,6 @@ function main() {
 main()
 // =======
 
-// Todo-maybe: sounds, more effects (vision, fog, oohoo-sensor?)
 // Todo-maybe: escape objective (instead of boring "just survive")
+
 // Todo-maybe: multiplayer???
