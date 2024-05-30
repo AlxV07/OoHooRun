@@ -1,52 +1,48 @@
 import  * as THREE from './ThreeRes/three.module.js'
 import { PointerLockControls } from './ThreeRes/PointerLockControls.js';
-import {BoxGeometry, Mesh, MeshBasicMaterial} from "./ThreeRes/three.module.js";
 
 // ======= Setup =======
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x121212);
-const camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 25);
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
-const controls = new PointerLockControls(camera, document.body);
-function lockControls() {controls.lock();}
-scene.add(controls.getObject());
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
+let renderer;
+let scene;
+let camera;
+let controls;
+function setup() {
+    renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
-});
-camera.position.y = 1.5
-camera.position.z = 5;
-camera.position.z = 5;
-camera.rotation.y = Math.PI
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x121212);
+    camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 20);
+    document.body.appendChild(renderer.domElement);
+    controls = new PointerLockControls(camera, document.body);
+    scene.add(controls.getObject());
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+setup()
 // =======
 
 // ======= Maze =======
-// Floor Gen
+// Floor
+const floorY = 0
 const floorLength = 100
 const floorWidth = 100
-const floorY = 0
 const floorGeo = new THREE.BoxGeometry(1, 1, 1);
 const floorMat1 = new THREE.MeshBasicMaterial({color: 0x989898});
 const floorMat2 = new THREE.MeshBasicMaterial({color: 0x878787});
 function buildFloor() {
     for (let x = 0; x < floorLength; x++) {
         for (let z = 0; z < floorWidth; z++) {
-            let floorPiece;
-            if ((x + z) % 2 === 0) {
-                floorPiece = new THREE.Mesh(floorGeo, floorMat1);
-            } else {
-                floorPiece = new THREE.Mesh(floorGeo, floorMat2);
-            }
+            const floorPiece = ((x + z) % 2 === 0) ? new THREE.Mesh(floorGeo, floorMat1) : new THREE.Mesh(floorGeo, floorMat2);
             floorPiece.position.set(x, floorY, z)
             scene.add(floorPiece);
         }
     }
 }
 
-// Roof Gen
+// Roof
 const roofY = 4
 const roofGeo = new THREE.BoxGeometry(1, 1, 1);
 const roofMat = new THREE.MeshBasicMaterial({color: 0x878787});
@@ -60,17 +56,17 @@ function buildRoof() {
     }
 }
 
-// Border Gen
+// Border
 function buildBorders() {
-    const bxGeo = new BoxGeometry(floorLength + 1, 10, 1)
     const bMat = new THREE.MeshBasicMaterial({color: 0x343434, wireframe: false});
+    const bxGeo = new THREE.BoxGeometry(floorLength + 1, 10, 1)
     const bx1 = new THREE.Mesh(bxGeo, bMat);
     bx1.position.set(floorLength / 2, floorY, -1)
     scene.add(bx1)
     const bx2 = new THREE.Mesh(bxGeo, bMat);
     bx2.position.set(floorLength / 2, floorY, floorWidth)
     scene.add(bx2)
-    const byGeo = new BoxGeometry(1, 10, floorWidth + 1)
+    const byGeo = new THREE.BoxGeometry(1, 10, floorWidth + 1)
     const by1 = new THREE.Mesh(byGeo, bMat);
     by1.position.set(-1, floorY, floorWidth / 2)
     scene.add(by1)
@@ -90,10 +86,10 @@ function genGrid() {
     }
 }
 
-// Wall Gen
+// Walls
 const minNofWalls = 250
 const maxNofWalls = 750
-const nofWallTypes = 4  // Remember to implement how each wall type should be built
+const nofWallTypes = 4  // Remember to implement how each wall type should be built in `buildWalls` method
 const nofWalls = Math.round(minNofWalls + Math.random() * (maxNofWalls - minNofWalls))
 const wallGeo = new THREE.BoxGeometry(1, 10, 1);
 const c1Geo = new THREE.BoxGeometry(0.5, 10, 1);
@@ -109,12 +105,7 @@ function makeWallBlock(x, z) {
     scene.add(wall)
     scene.add(c1)
     scene.add(c2)
-    try {
-        grid[z][x].isWall = true
-    } catch (e) {
-        console.error('coord of conflict:', z, x)
-        console.error('grid:', grid)
-    }
+    grid[z][x].isWall = true
 }
 function buildWalls() {
     for (let i = 0; i < nofWalls; i++) {
@@ -158,26 +149,24 @@ function buildWalls() {
     }
 }
 
-// Pathfinding grid gen
-function genPathfindingGrid() {
+// `connectsTo` for pathfinding
+function updateConnectsToArrays() {
     for (let x = 0; x < floorLength; x++) {
         for (let z = 0; z < floorWidth; z++) {
-            if (grid[z][x].isWall) {
-                continue
-            }
-            const connectsTo = grid[z][x].connectsTo
+            if (grid[z][x].isWall) {continue}
+            const c = grid[z][x].connectsTo
             // "+" path
             if (z + 1 < floorWidth && !grid[z + 1][x].isWall) {
-                connectsTo.push([x, z + 1])
+                c.push([x, z + 1])
             }
             if (z - 1 >= 0 && !grid[z - 1][x].isWall) {
-                connectsTo.push([x, z - 1])
+                c.push([x, z - 1])
             }
             if (x + 1 < floorLength && !grid[z][x + 1].isWall) {
-                connectsTo.push([x + 1, z])
+                c.push([x + 1, z])
             }
             if (x - 1 >= 0 && !grid[z][x - 1].isWall) {
-                connectsTo.push([x - 1, z])
+                c.push([x - 1, z])
             }
         }
     }
@@ -188,24 +177,20 @@ buildFloor()
 buildRoof()
 buildBorders()
 buildWalls()
-genPathfindingGrid()
+updateConnectsToArrays()
 // =======
 
-// ======= Player Variables =======
+// ======= Player =======
+// Variables
 let playerSpeed = 0.05
 let sprint = 100
-// =======
 
-// ======= Safety Movement =======
+// Movement
 function safeMoveForward(amt) {
     controls.moveForward(amt)
     let x = Math.round(controls.getObject().position.x)
     let z = Math.round(controls.getObject().position.z)
-    if (z < 0 || z >= floorWidth || x < 0 || x >= floorLength) {
-        controls.moveForward(-amt)
-        return
-    }
-    if (grid[z][x].isWall) {
+    if (z < 0 || z >= floorWidth || x < 0 || x >= floorLength || grid[z][x].isWall) {
         controls.moveForward(-amt)
     }
 }
@@ -213,11 +198,7 @@ function safeMoveRight(amt) {
     controls.moveRight(amt)
     let x = Math.round(controls.getObject().position.x)
     let z = Math.round(controls.getObject().position.z)
-    if (z < 0 || z >= floorWidth || x < 0 || x >= floorLength) {
-        controls.moveRight(-amt)
-        return
-    }
-    if (grid[z][x].isWall) {
+    if (z < 0 || z >= floorWidth || x < 0 || x >= floorLength || grid[z][x].isWall) {
         controls.moveRight(-amt)
     }
 }
@@ -228,11 +209,12 @@ function spawn() {
         x = Math.round(Math.random() * floorLength)
         z = Math.round(Math.random() * floorWidth)
     }
+    camera.position.y = 1.5
     camera.position.x = x
     camera.position.z = z
 }
 
-// ======= Key State =======
+// Key State
 const keyState = {}
 document.addEventListener('keydown', (event) => {keyState[event.code] = true;});
 document.addEventListener('keyup', (event) => {keyState[event.code] = false;});
@@ -248,7 +230,7 @@ function handleKeyState() {
         } else {
             playerSpeed = 0.05
             if (sprint < 100) {
-                sprint += 0.25
+                sprint += 0.1
             }
         }
     }
@@ -256,7 +238,6 @@ function handleKeyState() {
 // =======
 
 // ======= OoHoos =======
-const OooHooGeo = new BoxGeometry(1.2, 1.2, 0.01)
 const textureLoader = new THREE.TextureLoader()
 const texture_message = [
     ['oohoo1_cat',       'You were eaten by a cat.'],
@@ -265,31 +246,30 @@ const texture_message = [
     ['oohoo4_will',      'You were caught by a little kid.'],
     ['oohoo5_willi',     'You were overcome by William.']
 ]
-const OoHoos_TargetSquare_Path = [
-]  // {OoHoo: mesh, TargetSquare: [x,z], Path: [[x, z],...]}
+const OoHoos_TargetSquare_Path = []  // [i] = { OoHoo: mesh, TargetSquare: [x,z], Path: [[x, z],...] }
+const OooHooGeo = new THREE.BoxGeometry(1.2, 1.2, 0.01)
+
 function generateOoHoos() {
     for (let i = 0; i < texture_message.length; i++) {
         let texture = textureLoader.load('./OoHoos/' + texture_message[i][0] + '.png')
-        let OoHooMat = new MeshBasicMaterial({map: texture})
-        let OoHoo = new Mesh(OooHooGeo, OoHooMat)
+        let OoHoo = new THREE.Mesh(OooHooGeo, new THREE.MeshBasicMaterial({map: texture}))
         OoHoos_TargetSquare_Path.push({OoHoo: OoHoo, TargetSquare: [null, null], Path: []})
-        scene.add(OoHoo)
-        OoHoo.position.set(1, 1.5, 0)
         OoHoo.ooHooMessage = texture_message[i][1]
+        OoHoo.position.set(1, 1.5, 0)
+        scene.add(OoHoo)
     }
-} generateOoHoos()
+}
+
 function setTargetSquare(i) {
-    const OoHoo = OoHoos_TargetSquare_Path[i].OoHoo
+    // Returns whether a new path needs to be generated (true/false)
     const TargetSquare = OoHoos_TargetSquare_Path[i].TargetSquare
-    const Path = OoHoos_TargetSquare_Path[i].Path
-    if (OoHoo.position.distanceTo(camera.position) < 30) {
+    if (OoHoos_TargetSquare_Path[i].OoHoo.position.distanceTo(camera.position) < 30) {
         TargetSquare[0] = Math.abs(Math.round(camera.position.x))
         TargetSquare[1] = Math.abs(Math.round(camera.position.z))
         return true
-//        console.log('Player target...')
     } else {
         // Don't create new random target square if prev target is not reached
-        if (Path.length === 0) {
+        if (OoHoos_TargetSquare_Path[i].Path.length === 0) {
             let x = Math.abs(Math.round(Math.random() * floorLength))
             let z = Math.abs(Math.round(Math.random() * floorWidth))
             while (grid[z][x].isWall) {
@@ -299,66 +279,45 @@ function setTargetSquare(i) {
             TargetSquare[0] = x
             TargetSquare[1] = z
             return true
-//            console.log('Random target...')
         }
         return false
     }
-    // console.log('Target Selected:', TargetSquare)
+}
+
+// squareVisited array for flood filling path finding in `findPath`
+const squareVisited = []
+for (let z = 0; z < floorWidth; z++)  {
+    squareVisited.push([])
+    for (let x = 0; x < floorLength; x++) {
+        squareVisited[z].push(false)
+    }
 }
 function findPath(i) {
     const OoHoo = OoHoos_TargetSquare_Path[i].OoHoo
     const TargetSquare = OoHoos_TargetSquare_Path[i].TargetSquare
 
-    let q = [[[Math.round(OoHoo.position.x), Math.round(OoHoo.position.z)], []]]  // [Square, [path]]
-    let path = []
-    const marked = []
+    // Reset `squareVisited` array
     for (let z = 0; z < floorWidth; z++)  {
-        marked.push([])
         for (let x = 0; x < floorLength; x++) {
-            marked[z].push(false)
+            squareVisited[z][x] = false
         }
     }
+
+    // Flood
+    let path = []  // Final path to give to the OoHoo
+    let q = [[[Math.round(OoHoo.position.x), Math.round(OoHoo.position.z)], []]]  // [Square, [path]]
+    let idx = 0
     while (true) {
-        if (q.length === 0) {
-            break
-        }
-        let cur = q.shift()
-        let s;
-        try {
-            s = cur[0]
-        } catch (e) {
-            console.error(TargetSquare)
-            console.error('q:', q)
-            console.error('cur:', cur)
-            return
-        }
-        try {
-            if (marked[s[1]][s[0]]) {
-                continue
-            }
-        } catch (e) {
-            console.error('s:', s)
-            console.error('marked:', marked)
-            return;
-        }
+        if (idx === q.length) {break}
+        let cur = q[idx++]
+        let s = cur[0]
+        if (squareVisited[s[1]][s[0]]) {continue}
         cur[1].push(s)
-        if (s[0] === TargetSquare[0] && s[1] === TargetSquare[1]) {
-            path = cur[1]
-            break
-        }
-        let c ;
-        try {
-            c = grid[s[1]][s[0]].connectsTo
-        } catch (e) {
-            console.error('s:', s)
-            return;
-        }
-        for (let j = 0; j < c.length; j++) {
-            q.push([c[j], Array.from(cur[1])])
-        }
-        marked[s[1]][s[0]] = true
+        if (s[0] === TargetSquare[0] && s[1] === TargetSquare[1]) {path = cur[1]; break}
+        let c = grid[s[1]][s[0]].connectsTo
+        for (let j = 0; j < c.length; j++) {q.push([c[j], Array.from(cur[1])])}
+        squareVisited[s[1]][s[0]] = true
     }
-    // console.log('New Path Made:', path)
     OoHoos_TargetSquare_Path[i].Path = path
 }
 function stepOoHoo(i) {
@@ -374,13 +333,9 @@ function stepOoHoo(i) {
             OoHoo.position.x += sx
             OoHoo.position.z += sz
         }
-        if (Math.round(OoHoo.position.x) === next[0] && Math.round(OoHoo.position.z) === next[1]) {
-            Path.shift()
-        }
+        if (Math.round(OoHoo.position.x) === next[0] && Math.round(OoHoo.position.z) === next[1]) {Path.shift()}
     }
-    if (OoHoo.position.distanceTo(camera.position) < 1.5) {
-        endGame(OoHoo)
-    }
+    if (OoHoo.position.distanceTo(camera.position) < 1.5) {endGame(OoHoo)}
 }
 function endGame(OoHoo) {
     gameOver = true
@@ -391,7 +346,6 @@ function endGame(OoHoo) {
     const OoHooOrigY = OoHoo.position.y
     setInterval(() => {OoHoo.position.y = OoHooOrigY + Math.random() * (Math.random() > 0.5 ? -0.1 : 0.1)}, 50)
     document.getElementById('deathMessage').textContent = OoHoo.ooHooMessage
-
     const nofIterations = 20
     const origRot = camera.rotation.clone()
     camera.lookAt(OoHoo.position)
@@ -430,6 +384,7 @@ async function tickOoHoos() {
         }
     }
 }
+generateOoHoos()
 // =======
 
 // ======= Runners =======
@@ -466,8 +421,8 @@ function main() {
         if (!started) {
             started = true;
             document.body.removeChild(document.getElementById('start'))
-            lockControls()
-            document.addEventListener('click', lockControls);
+            controls.lock()
+            document.addEventListener('click', () => {controls.lock()});
             startTimer()
             animate()
         }
@@ -479,4 +434,3 @@ main()
 // Todo-maybe: sounds, more effects (vision, fog, oohoo-sensor?)
 // Todo-maybe: escape objective (instead of boring "just survive")
 // Todo-maybe: multiplayer???
-
